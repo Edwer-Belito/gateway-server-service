@@ -1,0 +1,79 @@
+server:
+  port: 9020
+
+spring:
+  application:
+    name: gateway-service
+
+  cloud:
+    gateway:
+      routes:
+#      - id: client2-v1
+#        uri: http://localhost:7080
+#        predicates:
+#        - Path=/dummy-client2/saludo
+      
+#      - id: client2-v2
+#        uri: http://localhost:7080
+#        predicates:
+#        - Path=/saludo
+#        filters:
+#        - PrefixPath=/dummy-client2
+#      
+#      - id: client2-v3
+#        uri: http://localhost:7080
+#        predicates:
+#        - Path=/xxx, /yyy, /zzz
+#        filters:
+#        - SetPath=/dummy-client2/saludo
+#        - AddRequestHeader=xxxxxxxxx, ggggggggggggggg
+#        - AddResponseHeader=wwwwwwwwwwww, aaaaaaaaaaaaa
+#        - AddRequestParameter=rtyrtyrty, hfghfhfgh
+        
+      - id: gateway-to-customer
+        uri: lb://customer-service
+        predicates:
+        - Path=/customer/**
+        filters:
+        - CircuitBreaker=customer-transaction
+      - id: gateway-to-transaction
+        uri: lb://transaction-service
+        predicates:
+        - Path=/transaction/**
+        filters:
+        - CircuitBreaker=customer-transaction
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 6 # 1
+        failure-rate-threshold: 50 # 2
+        wait-duration-in-open-state: 20s # 3
+        permitted-number-of-calls-in-half-open-state: 4 # 4
+        slow-call-rate-threshold: 50 # 5
+        slow-call-duration-threshold: 2s # 6
+    instances:
+      customer-transaction:
+        base-config: default
+  timelimiter:
+    configs:
+      default:
+        timeout-duration: 5s
+    instances:
+      customer-transaction:
+       base-config: default
+
+# 1.- Cantidad de peticiones que se van a evaluar.
+# 2.- Porcentaje de fallas (en la ventana) para que el circuito pase a estado ABIERTO.
+# 3.- Tiempo despues del cual el estado pasar CERRADO a SEMI-ABIERTO.
+# 4.- Numero de peticiones permitidas en estado abierto si el porcentaje de fallas es igual al 
+#     establecido, pasa a estado OPEN, sino pasa a CERRADO.
+# 5.- Porcentaje de llamadas lentas para pasar a estado ABIERTO.
+# 6.- El tiempo que debe transcurrir en el llamado para considerarse lenta.
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server-service:8761/eureka
+#    enabled: false
