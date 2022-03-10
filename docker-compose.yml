@@ -1,21 +1,12 @@
-version: '3.8'
-services:
+version: '2.4'
+
+networks:
+  docker-network:
+
+
   
-#  config-server-service:
-#    build:
-#      context: ./
-#      dockerfile: Dockerfile_1
-#    image: config-server-service:latest
-#    hostname: config-server-servic
-#    restart: always
-#    expose:
-#      - 9010
-#    ports:
-#      - 9010:9010
-#    container_name: config-server-service
-#    networks:
-#      - 'docker-network'
-    
+services:
+
   eureka-server-service:
     build:
       context: ./
@@ -23,14 +14,55 @@ services:
     image: eureka-server-service:latest
     hostname: eureka-server-service
     restart: always
+    healthcheck:
+      test: "exit 0"
     expose:
       - 8761
     ports:
       - 8761:8761
     networks:
-      - 'docker-network'
+      - docker-network
     container_name: eureka-server-service
-  
+    
+    
+  mongoDB:
+    image: mongo:latest
+    container_name: mongoDB
+    hostname: mongoDB
+    healthcheck:
+      test: "exit 0"
+    ports:
+      - 27017:27017
+    expose:
+      - 27017
+    networks:
+      - docker-network
+
+
+
+  config-server-service:
+    build:
+      context: ./
+      dockerfile: Dockerfile_1
+    depends_on:
+      eureka-server-service:
+        condition: service_healthy
+    image: config-server-service:latest
+    hostname: config-server-service
+    restart: always
+    healthcheck:
+      test: "exit 0"
+    expose:
+      - 9010
+    ports:
+      - 9010:9010
+    container_name: config-server-service
+
+    networks:
+      - docker-network
+
+      
+
   gateway-service:
     build:
       context: ./
@@ -38,23 +70,35 @@ services:
     image: gateway-service:latest
     hostname: gateway-service
     restart: always
+    depends_on:
+      eureka-server-service:
+        condition: service_healthy
     ports:
       - 9020:9020
     expose:
       - 9020
     networks:
-      - 'docker-network'
+      - docker-network
     container_name: gateway-service
     depends_on:
-      - eureka-server-service
-  
+      eureka-server-service:
+        condition: service_started
+      
+        
+        
   customer-service:
     build:
       context: ./
       dockerfile: Dockerfile_2
+    depends_on:
+      config-server-service:
+        condition: service_healthy
+      mongoDB:
+        condition: service_healthy
+      eureka-server-service:
+        condition: service_healthy
+     
     image: customer-service:latest
-    links:
-      - mongoDB:mongoDB
     ports:
       - 8081:8081
     expose:
@@ -63,19 +107,24 @@ services:
     hostname: customer-service
     restart: always
     networks:
-      - 'docker-network'
-    depends_on:
-      - mongoDB
-      - eureka-server-service
+      - docker-network
+
 
       
+
+
   transaction-service:
     build:
       context: ./
       dockerfile: Dockerfile_3
+    depends_on:
+      config-server-service:
+        condition: service_healthy
+      mongoDB:
+        condition: service_healthy
+      eureka-server-service:
+        condition: service_healthy
     image: transaction-service:latest
-    links:
-      - mongoDB:mongoDB
     ports:
       - 8082:8082
     expose:
@@ -84,21 +133,7 @@ services:
     hostname: transaction-service
     restart: always
     networks:
-      - 'docker-network'
-    depends_on:
-      - mongoDB
-      - eureka-server-service
-  
-  mongoDB:
-    image: mongo:latest
-    container_name: mongoDB
-    hostname: mongoDB
-    ports:
-      - 27017:27017
-    expose:
-      - 27017
-    networks:
-      - 'docker-network'
+      - docker-network
 
-networks:
-  docker-network:
+
+
